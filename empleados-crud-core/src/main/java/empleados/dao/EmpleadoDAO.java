@@ -25,8 +25,8 @@ public class EmpleadoDAO {
         List<Empleado> lista = new ArrayList<>();
         String sql = "SELECT * FROM empleados";
         try (Connection conn = Conexion.getConnection();
-             Statement st = conn.createStatement();
-             ResultSet rs = st.executeQuery(sql)) {
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
                 Empleado e = new Empleado(
                     rs.getInt("id"),

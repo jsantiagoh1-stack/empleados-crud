@@ -21,8 +21,12 @@ public class Empleado {
     }
 
     public Empleado(int id, String nombre, String departamento, double salario, LocalDate fechaContratacion, boolean activo) {
-        this(nombre, departamento, salario, fechaContratacion, activo);
         this.id = id;
+        this.nombre = nombre;
+        this.departamento = departamento;
+        this.salario = salario;
+        this.fechaContratacion = fechaContratacion;
+        this.activo = activo;
     }
 
     public int getId() { return id; }
