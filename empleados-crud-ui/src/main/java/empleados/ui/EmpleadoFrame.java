@@ -9,6 +9,7 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
@@ -27,23 +28,25 @@ public class EmpleadoFrame extends JFrame {
     private JCheckBox chkActivo;
     private JTable table;
     private JButton btnGuardar, btnActualizar, btnEliminar, btnLimpiar;
+    private JLabel lblStatus, lblTotal;
 
     public EmpleadoFrame() {
         initUI();
         cargarDatos();
+        limpiarFormulario();
     }
 
     private void initUI() {
         setTitle("Sistema de Gestión de Empleados");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1050, 650);
+        setSize(1080, 680);
         setLocationRelativeTo(null);
 
-        JPanel mainPanel = new JPanel(new BorderLayout(15, 15));
-        mainPanel.setBorder(new EmptyBorder(15, 15, 15, 15));
+        JPanel mainPanel = new JPanel(new BorderLayout(15, 10));
+        mainPanel.setBorder(new EmptyBorder(15, 15, 10, 15));
         setContentPane(mainPanel);
 
-        // Header Superior con Buscador Integrado
+        // 1. Header Superior con Buscador Integrado
         JPanel headerPanel = new JPanel(new BorderLayout(10, 10));
         JLabel lblTitulo = new JLabel("Panel Principal de Empleados");
         lblTitulo.setFont(new Font("SansSerif", Font.BOLD, 22));
@@ -61,7 +64,7 @@ public class EmpleadoFrame extends JFrame {
         headerPanel.add(txtBuscar, BorderLayout.EAST);
         mainPanel.add(headerPanel, BorderLayout.NORTH);
 
-        // Panel de Formulario
+        // 2. Panel de Formulario
         JPanel formPanel = new JPanel(new GridBagLayout());
         formPanel.setBorder(BorderFactory.createTitledBorder(" Información del Empleado "));
         formPanel.putClientProperty(FlatClientProperties.STYLE, "arc: 12");
@@ -87,7 +90,7 @@ public class EmpleadoFrame extends JFrame {
         gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 2;
         formPanel.add(chkActivo, gbc);
 
-        // Panel de Botones con Estilos Coloridos
+        // Panel de Botones
         JPanel btnPanel = new JPanel(new GridLayout(2, 2, 8, 8));
         btnGuardar = new JButton("Guardar");
         btnActualizar = new JButton("Actualizar");
@@ -111,7 +114,7 @@ public class EmpleadoFrame extends JFrame {
 
         mainPanel.add(formPanel, BorderLayout.WEST);
 
-        // Tabla Principal
+        // 3. Tabla Principal con Alineación y Formatos
         String[] columnas = {"ID", "Nombre", "Departamento", "Salario", "Fecha", "Estado"};
         tableModel = new DefaultTableModel(columnas, 0) {
             @Override
@@ -122,12 +125,36 @@ public class EmpleadoFrame extends JFrame {
         table.getTableHeader().setReorderingAllowed(false);
         table.putClientProperty(FlatClientProperties.STYLE, "showHorizontalLines: true; arc: 10");
 
+        // Alineación de celdas en la tabla
+        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
+        centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
+
+        DefaultTableCellRenderer rightRenderer = new DefaultTableCellRenderer();
+        rightRenderer.setHorizontalAlignment(SwingConstants.RIGHT);
+
+        table.getColumnModel().getColumn(0).setCellRenderer(centerRenderer); // ID
+        table.getColumnModel().getColumn(3).setCellRenderer(rightRenderer);  // Salario
+        table.getColumnModel().getColumn(4).setCellRenderer(centerRenderer); // Fecha
+        table.getColumnModel().getColumn(5).setCellRenderer(centerRenderer); // Estado
+
         sorter = new TableRowSorter<>(tableModel);
         table.setRowSorter(sorter);
 
         JScrollPane scrollPane = new JScrollPane(table);
         scrollPane.putClientProperty(FlatClientProperties.STYLE, "arc: 10");
         mainPanel.add(scrollPane, BorderLayout.CENTER);
+
+        // 4. Barra de Estado Inferior
+        JPanel statusPanel = new JPanel(new BorderLayout(10, 0));
+        statusPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
+        lblStatus = new JLabel(" Sistema listo.");
+        lblTotal = new JLabel("Total de empleados: 0  ");
+        lblStatus.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        lblTotal.setFont(new Font("SansSerif", Font.BOLD, 12));
+
+        statusPanel.add(lblStatus, BorderLayout.WEST);
+        statusPanel.add(lblTotal, BorderLayout.EAST);
+        mainPanel.add(statusPanel, BorderLayout.SOUTH);
 
         // Eventos
         btnGuardar.addActionListener(e -> guardarEmpleado());
@@ -156,20 +183,32 @@ public class EmpleadoFrame extends JFrame {
         panel.add(field, gbc);
     }
 
+    // Control de habilitación según el estado del formulario
+    private void setModoEdicion(boolean enEdicion) {
+        btnGuardar.setEnabled(!enEdicion);
+        btnActualizar.setEnabled(enEdicion);
+        btnEliminar.setEnabled(enEdicion);
+    }
+
     private void cargarDatos() {
         tableModel.setRowCount(0);
         try {
             List<Empleado> lista = dao.listarTodos();
             for (Empleado e : lista) {
                 tableModel.addRow(new Object[]{
-                    e.getId(), e.getNombre(), e.getDepartamento(),
-                    String.format("%.2f", e.getSalario()),
+                    e.getId(),
+                    e.getNombre(),
+                    e.getDepartamento(),
+                    String.format("Q %,.2f", e.getSalario()),
                     e.getFechaContratacion(),
                     e.isActivo() ? "Activo" : "Inactivo"
                 });
             }
+            actualizarContador();
+            setStatus("Datos cargados correctamente.");
         } catch (SQLException ex) {
             JOptionPane.showMessageDialog(this, "Error de base de datos: " + ex.getMessage(), "Error SQL", JOptionPane.ERROR_MESSAGE);
+            setStatus("Error al cargar datos.");
         }
     }
 
@@ -179,7 +218,8 @@ public class EmpleadoFrame extends JFrame {
             dao.crear(e);
             cargarDatos();
             limpiarFormulario();
-            JOptionPane.showMessageDialog(this, "Empleado registrado correctamente.");
+            setStatus("Empleado registrado con éxito.");
+            JOptionPane.showMessageDialog(this, "Empleado registrado correctamente.", "Éxito", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(), "Atención", JOptionPane.WARNING_MESSAGE);
         }
@@ -195,7 +235,8 @@ public class EmpleadoFrame extends JFrame {
             dao.actualizar(e);
             cargarDatos();
             limpiarFormulario();
-            JOptionPane.showMessageDialog(this, "Registro actualizado correctamente.");
+            setStatus("Empleado actualizado con éxito.");
+            JOptionPane.showMessageDialog(this, "Registro actualizado correctamente.", "Éxito", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(), "Atención", JOptionPane.WARNING_MESSAGE);
         }
@@ -206,45 +247,99 @@ public class EmpleadoFrame extends JFrame {
             JOptionPane.showMessageDialog(this, "Selecciona una fila de la tabla primero.");
             return;
         }
-        int confirm = JOptionPane.showConfirmDialog(this, "¿Deseas eliminar este registro?", "Confirmación", JOptionPane.YES_NO_OPTION);
+        int confirm = JOptionPane.showConfirmDialog(
+            this,
+            "¿Está seguro de que desea eliminar al empleado '" + txtNombre.getText() + "'?",
+            "Confirmar Eliminación",
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.WARNING_MESSAGE
+        );
         if (confirm == JOptionPane.YES_OPTION) {
             try {
                 dao.eliminar(Integer.parseInt(txtId.getText()));
                 cargarDatos();
                 limpiarFormulario();
-                JOptionPane.showMessageDialog(this, "Empleado eliminado.");
+                setStatus("Empleado eliminado con éxito.");
+                JOptionPane.showMessageDialog(this, "Empleado eliminado correctamente.", "Éxito", JOptionPane.INFORMATION_MESSAGE);
             } catch (SQLException ex) {
                 JOptionPane.showMessageDialog(this, "Error al eliminar: " + ex.getMessage());
+                setStatus("Error al eliminar registro.");
             }
         }
     }
 
+    // Validación visual utilizando los bordes rojos de FlatLaf
     private Empleado obtenerEmpleadoDesdeFormulario(boolean incluirId) {
+        limpiarErroresVisuales();
+        boolean valido = true;
+
         String nombre = txtNombre.getText().trim();
+        if (nombre.isEmpty()) {
+            txtNombre.putClientProperty(FlatClientProperties.OUTLINE, FlatClientProperties.OUTLINE_ERROR);
+            valido = false;
+        }
+
         String depto = txtDepartamento.getText().trim();
-        if (nombre.isEmpty() || depto.isEmpty()) throw new IllegalArgumentException("Nombre y Departamento son obligatorios.");
+        if (depto.isEmpty()) {
+            txtDepartamento.putClientProperty(FlatClientProperties.OUTLINE, FlatClientProperties.OUTLINE_ERROR);
+            valido = false;
+        }
 
-        double salario;
-        try { salario = Double.parseDouble(txtSalario.getText().trim().replace(",", ".")); }
-        catch (NumberFormatException e) { throw new IllegalArgumentException("El salario debe ser un número válido."); }
+        double salario = 0;
+        try {
+            salario = Double.parseDouble(txtSalario.getText().trim().replace(",", "."));
+            if (salario < 0) throw new NumberFormatException();
+        } catch (NumberFormatException e) {
+            txtSalario.putClientProperty(FlatClientProperties.OUTLINE, FlatClientProperties.OUTLINE_ERROR);
+            valido = false;
+        }
 
-        LocalDate fecha;
-        try { fecha = LocalDate.parse(txtFecha.getText().trim()); }
-        catch (DateTimeParseException e) { throw new IllegalArgumentException("Fecha inválida (usa formato YYYY-MM-DD)."); }
+        LocalDate fecha = null;
+        try {
+            fecha = LocalDate.parse(txtFecha.getText().trim());
+        } catch (DateTimeParseException e) {
+            txtFecha.putClientProperty(FlatClientProperties.OUTLINE, FlatClientProperties.OUTLINE_ERROR);
+            valido = false;
+        }
+
+        if (!valido) {
+            throw new IllegalArgumentException("Por favor, completa los campos resaltados en rojo correctamente.");
+        }
 
         Empleado e = new Empleado(nombre, depto, salario, fecha, chkActivo.isSelected());
-        if (incluirId) e.setId(Integer.parseInt(txtId.getText()));
+        if (incluirId) {
+            e.setId(Integer.parseInt(txtId.getText()));
+        }
         return e;
     }
 
+    private void limpiarErroresVisuales() {
+        txtNombre.putClientProperty(FlatClientProperties.OUTLINE, null);
+        txtDepartamento.putClientProperty(FlatClientProperties.OUTLINE, null);
+        txtSalario.putClientProperty(FlatClientProperties.OUTLINE, null);
+        txtFecha.putClientProperty(FlatClientProperties.OUTLINE, null);
+    }
+
     private void seleccionarFila() {
-        int modelRow = table.convertRowIndexToModel(table.getSelectedRow());
+        int selectedRow = table.getSelectedRow();
+        if (selectedRow == -1) return;
+
+        int modelRow = table.convertRowIndexToModel(selectedRow);
         txtId.setText(tableModel.getValueAt(modelRow, 0).toString());
         txtNombre.setText(tableModel.getValueAt(modelRow, 1).toString());
         txtDepartamento.setText(tableModel.getValueAt(modelRow, 2).toString());
-        txtSalario.setText(tableModel.getValueAt(modelRow, 3).toString().replace(",", "."));
+
+        // Quitar el formato 'Q ' y comas para colocar el valor numérico en el input
+        String salarioStr = tableModel.getValueAt(modelRow, 3).toString()
+                                .replace("Q", "").replace(",", "").trim();
+        txtSalario.setText(salarioStr);
+
         txtFecha.setText(tableModel.getValueAt(modelRow, 4).toString());
         chkActivo.setSelected(tableModel.getValueAt(modelRow, 5).toString().equals("Activo"));
+
+        limpiarErroresVisuales();
+        setModoEdicion(true);
+        setStatus("Empleado seleccionado: ID " + txtId.getText());
     }
 
     private void limpiarFormulario() {
@@ -254,7 +349,10 @@ public class EmpleadoFrame extends JFrame {
         txtSalario.setText("");
         txtFecha.setText("");
         chkActivo.setSelected(true);
+        limpiarErroresVisuales();
         table.clearSelection();
+        setModoEdicion(false);
+        setStatus("Formulario listo para nuevo registro.");
     }
 
     private void filtrar() {
@@ -264,6 +362,15 @@ public class EmpleadoFrame extends JFrame {
         } else {
             sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query));
         }
+        actualizarContador();
+    }
+
+    private void actualizarContador() {
+        lblTotal.setText("Total de empleados: " + table.getRowCount() + "  ");
+    }
+
+    private void setStatus(String mensaje) {
+        lblStatus.setText(" " + mensaje);
     }
 
     public static void main(String[] args) {
