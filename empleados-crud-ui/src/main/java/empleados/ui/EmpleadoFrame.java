@@ -2,6 +2,8 @@ package empleados.ui;
 
 import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatLaf;
+import com.formdev.flatlaf.FlatLightLaf;
 import empleados.dao.EmpleadoDAO;
 import empleados.modelo.Empleado;
 
@@ -34,6 +36,7 @@ public class EmpleadoFrame extends JFrame {
     private JCheckBox chkActivo;
     private JTable table;
     private JButton btnGuardar, btnActualizar, btnEliminar, btnLimpiar, btnExportar;
+    private JToggleButton btnTema;
     private JLabel lblStatus, lblTotal;
 
     public EmpleadoFrame() {
@@ -45,29 +48,40 @@ public class EmpleadoFrame extends JFrame {
     private void initUI() {
         setTitle("Sistema de Gestión de Empleados");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1100, 700);
+        setSize(1120, 720);
         setLocationRelativeTo(null);
 
         JPanel mainPanel = new JPanel(new BorderLayout(15, 10));
         mainPanel.setBorder(new EmptyBorder(15, 15, 10, 15));
         setContentPane(mainPanel);
 
-        // 1. Header Superior con Buscador Integrado
+        // 1. Header Superior (Título + Selector de Tema + Buscador)
         JPanel headerPanel = new JPanel(new BorderLayout(10, 10));
         JLabel lblTitulo = new JLabel("Panel Principal de Empleados");
         lblTitulo.setFont(new Font("SansSerif", Font.BOLD, 22));
-        headerPanel.add(lblTitulo, BorderLayout.WEST);
+
+        // [MEJORA VISUAL 1] Selector de Tema Claro / Oscuro en Tiempo Real
+        btnTema = new JToggleButton("🌙 Modo Oscuro");
+        btnTema.setSelected(true);
+        btnTema.putClientProperty(FlatClientProperties.STYLE, "arc: 10");
+        btnTema.addActionListener(e -> alternarTema());
 
         txtBuscar = new JTextField();
         txtBuscar.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, "🔍 Buscar en tiempo real...");
         txtBuscar.putClientProperty(FlatClientProperties.STYLE, "arc: 12");
-        txtBuscar.setPreferredSize(new Dimension(280, 35));
+        txtBuscar.setPreferredSize(new Dimension(260, 35));
         txtBuscar.getDocument().addDocumentListener(new DocumentListener() {
             public void insertUpdate(DocumentEvent e) { filtrar(); }
             public void removeUpdate(DocumentEvent e) { filtrar(); }
             public void changedUpdate(DocumentEvent e) { filtrar(); }
         });
-        headerPanel.add(txtBuscar, BorderLayout.EAST);
+
+        JPanel rightHeader = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        rightHeader.add(btnTema);
+        rightHeader.add(txtBuscar);
+
+        headerPanel.add(lblTitulo, BorderLayout.WEST);
+        headerPanel.add(rightHeader, BorderLayout.EAST);
         mainPanel.add(headerPanel, BorderLayout.NORTH);
 
         // 2. Panel de Formulario
@@ -84,7 +98,7 @@ public class EmpleadoFrame extends JFrame {
         txtDepartamento = createStyledField("Ej: Informática");
         txtSalario = createStyledField("Ej: 5500.00");
 
-        // [MEJORA 1] Restricción de entrada de teclado en el Salario
+        // Restricción de Teclado (Solo números y un punto decimal)
         txtSalario.addKeyListener(new KeyAdapter() {
             @Override
             public void keyTyped(KeyEvent evt) {
@@ -111,12 +125,12 @@ public class EmpleadoFrame extends JFrame {
         gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 2;
         formPanel.add(chkActivo, gbc);
 
-        // Panel de Botones
+        // [MEJORA VISUAL 2] Botones con Iconografía
         JPanel btnPanel = new JPanel(new GridLayout(2, 2, 8, 8));
-        btnGuardar = new JButton("Guardar");
-        btnActualizar = new JButton("Actualizar");
-        btnEliminar = new JButton("Eliminar");
-        btnLimpiar = new JButton("Limpiar");
+        btnGuardar = new JButton("➕ Guardar");
+        btnActualizar = new JButton("✏️ Actualizar");
+        btnEliminar = new JButton("🗑️ Eliminar");
+        btnLimpiar = new JButton("🧹 Limpiar");
 
         btnGuardar.putClientProperty(FlatClientProperties.STYLE, "background: #2b78e4; foreground: #ffffff; bold: true; arc: 10");
         btnActualizar.putClientProperty(FlatClientProperties.STYLE, "background: #2e7d32; foreground: #ffffff; bold: true; arc: 10");
@@ -135,7 +149,7 @@ public class EmpleadoFrame extends JFrame {
 
         mainPanel.add(formPanel, BorderLayout.WEST);
 
-        // 3. Tabla Principal con Alineación y Formatos
+        // 3. [MEJORA VISUAL 3] Tabla Estilo Zebra y Anchos de Columna Optimizados
         String[] columnas = {"ID", "Nombre", "Departamento", "Salario", "Fecha", "Estado"};
         tableModel = new DefaultTableModel(columnas, 0) {
             @Override
@@ -144,9 +158,15 @@ public class EmpleadoFrame extends JFrame {
         table = new JTable(tableModel);
         table.setRowHeight(32);
         table.getTableHeader().setReorderingAllowed(false);
-        table.putClientProperty(FlatClientProperties.STYLE, "showHorizontalLines: true; arc: 10");
 
-        // [MEJORA 2] Selección de registros mediante Doble Clic
+        // Estilo Zebra (Filas alternadas) sin líneas verticales pesadas
+        table.putClientProperty(FlatClientProperties.STYLE, ""
+            + "showHorizontalLines: true;"
+            + "showVerticalLines: false;"
+            + "alternateRowColor: $Table.alternateRowColor;"
+            + "arc: 10");
+
+        // Carga por Doble Clic
         table.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -156,7 +176,7 @@ public class EmpleadoFrame extends JFrame {
             }
         });
 
-        // Alineación de celdas en la tabla
+        // Alineación de Celdas
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
         centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
 
@@ -168,6 +188,14 @@ public class EmpleadoFrame extends JFrame {
         table.getColumnModel().getColumn(4).setCellRenderer(centerRenderer); // Fecha
         table.getColumnModel().getColumn(5).setCellRenderer(centerRenderer); // Estado
 
+        // Ajuste de Anchos Proporcionales de Columnas
+        table.getColumnModel().getColumn(0).setPreferredWidth(50);  // ID
+        table.getColumnModel().getColumn(1).setPreferredWidth(210); // Nombre
+        table.getColumnModel().getColumn(2).setPreferredWidth(140); // Departamento
+        table.getColumnModel().getColumn(3).setPreferredWidth(110); // Salario
+        table.getColumnModel().getColumn(4).setPreferredWidth(100); // Fecha
+        table.getColumnModel().getColumn(5).setPreferredWidth(80);  // Estado
+
         sorter = new TableRowSorter<>(tableModel);
         table.setRowSorter(sorter);
 
@@ -175,7 +203,7 @@ public class EmpleadoFrame extends JFrame {
         scrollPane.putClientProperty(FlatClientProperties.STYLE, "arc: 10");
         mainPanel.add(scrollPane, BorderLayout.CENTER);
 
-        // 4. Barra de Estado Inferior con Botón de Exportación CSV
+        // 4. Barra de Estado Inferior con Botón Exportar CSV
         JPanel statusPanel = new JPanel(new BorderLayout(10, 0));
         statusPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
         lblStatus = new JLabel(" Sistema listo.");
@@ -183,7 +211,6 @@ public class EmpleadoFrame extends JFrame {
         lblStatus.setFont(new Font("SansSerif", Font.PLAIN, 12));
         lblTotal.setFont(new Font("SansSerif", Font.BOLD, 12));
 
-        // [MEJORA 3] Botón Exportar CSV
         btnExportar = new JButton("📊 Exportar CSV");
         btnExportar.putClientProperty(FlatClientProperties.STYLE, "arc: 8");
         btnExportar.addActionListener(e -> exportarCSV());
@@ -196,7 +223,7 @@ public class EmpleadoFrame extends JFrame {
         statusPanel.add(rightStatusPanel, BorderLayout.EAST);
         mainPanel.add(statusPanel, BorderLayout.SOUTH);
 
-        // Eventos de los botones principales
+        // Eventos principales
         btnGuardar.addActionListener(e -> guardarEmpleado());
         btnActualizar.addActionListener(e -> actualizarEmpleado());
         btnEliminar.addActionListener(e -> eliminarEmpleado());
@@ -207,6 +234,17 @@ public class EmpleadoFrame extends JFrame {
                 seleccionarFila();
             }
         });
+    }
+
+    private void alternarTema() {
+        if (btnTema.isSelected()) {
+            FlatDarkLaf.setup();
+            btnTema.setText("🌙 Modo Oscuro");
+        } else {
+            FlatLightLaf.setup();
+            btnTema.setText("☀️ Modo Claro");
+        }
+        FlatLaf.updateUI();
     }
 
     private JTextField createStyledField(String placeholder) {
@@ -246,7 +284,7 @@ public class EmpleadoFrame extends JFrame {
             actualizarContador();
             setStatus("Datos cargados correctamente.");
         } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "Error de base de datos: " + ex.getMessage(), "Error SQL", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Error SQL: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             setStatus("Error al cargar datos.");
         }
     }
@@ -266,7 +304,7 @@ public class EmpleadoFrame extends JFrame {
 
     private void actualizarEmpleado() {
         if (txtId.getText().isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Selecciona una fila de la tabla primero.");
+            JOptionPane.showMessageDialog(this, "Selecciona una fila primero.");
             return;
         }
         try {
@@ -283,12 +321,12 @@ public class EmpleadoFrame extends JFrame {
 
     private void eliminarEmpleado() {
         if (txtId.getText().isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Selecciona una fila de la tabla primero.");
+            JOptionPane.showMessageDialog(this, "Selecciona una fila primero.");
             return;
         }
         int confirm = JOptionPane.showConfirmDialog(
             this,
-            "¿Está seguro de que desea eliminar al empleado '" + txtNombre.getText() + "'?",
+            "¿Está seguro de que desea eliminar a '" + txtNombre.getText() + "'?",
             "Confirmar Eliminación",
             JOptionPane.YES_NO_OPTION,
             JOptionPane.WARNING_MESSAGE
@@ -307,7 +345,6 @@ public class EmpleadoFrame extends JFrame {
         }
     }
 
-    // Exportación de filas de la tabla a un archivo CSV accesible por Excel
     private void exportarCSV() {
         if (table.getRowCount() == 0) {
             JOptionPane.showMessageDialog(this, "No hay datos para exportar.", "Atención", JOptionPane.WARNING_MESSAGE);
