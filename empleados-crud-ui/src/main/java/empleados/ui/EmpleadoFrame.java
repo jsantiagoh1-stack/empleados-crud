@@ -13,6 +13,12 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.io.File;
+import java.io.PrintWriter;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -27,7 +33,7 @@ public class EmpleadoFrame extends JFrame {
     private JTextField txtId, txtNombre, txtDepartamento, txtSalario, txtFecha, txtBuscar;
     private JCheckBox chkActivo;
     private JTable table;
-    private JButton btnGuardar, btnActualizar, btnEliminar, btnLimpiar;
+    private JButton btnGuardar, btnActualizar, btnEliminar, btnLimpiar, btnExportar;
     private JLabel lblStatus, lblTotal;
 
     public EmpleadoFrame() {
@@ -39,7 +45,7 @@ public class EmpleadoFrame extends JFrame {
     private void initUI() {
         setTitle("Sistema de Gestión de Empleados");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1080, 680);
+        setSize(1100, 700);
         setLocationRelativeTo(null);
 
         JPanel mainPanel = new JPanel(new BorderLayout(15, 10));
@@ -77,6 +83,21 @@ public class EmpleadoFrame extends JFrame {
         txtNombre = createStyledField("Ej: Carlos Mendoza");
         txtDepartamento = createStyledField("Ej: Informática");
         txtSalario = createStyledField("Ej: 5500.00");
+
+        // [MEJORA 1] Restricción de entrada de teclado en el Salario
+        txtSalario.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyTyped(KeyEvent evt) {
+                char c = evt.getKeyChar();
+                if (!Character.isDigit(c) && c != '.' && c != KeyEvent.VK_BACK_SPACE) {
+                    evt.consume();
+                }
+                if (c == '.' && txtSalario.getText().contains(".")) {
+                    evt.consume();
+                }
+            }
+        });
+
         txtFecha = createStyledField("YYYY-MM-DD");
         chkActivo = new JCheckBox("Estado Activo");
         chkActivo.setSelected(true);
@@ -125,6 +146,16 @@ public class EmpleadoFrame extends JFrame {
         table.getTableHeader().setReorderingAllowed(false);
         table.putClientProperty(FlatClientProperties.STYLE, "showHorizontalLines: true; arc: 10");
 
+        // [MEJORA 2] Selección de registros mediante Doble Clic
+        table.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2 && table.getSelectedRow() != -1) {
+                    seleccionarFila();
+                }
+            }
+        });
+
         // Alineación de celdas en la tabla
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
         centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
@@ -144,19 +175,28 @@ public class EmpleadoFrame extends JFrame {
         scrollPane.putClientProperty(FlatClientProperties.STYLE, "arc: 10");
         mainPanel.add(scrollPane, BorderLayout.CENTER);
 
-        // 4. Barra de Estado Inferior
+        // 4. Barra de Estado Inferior con Botón de Exportación CSV
         JPanel statusPanel = new JPanel(new BorderLayout(10, 0));
         statusPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
         lblStatus = new JLabel(" Sistema listo.");
-        lblTotal = new JLabel("Total de empleados: 0  ");
+        lblTotal = new JLabel("Total de empleados: 0 ");
         lblStatus.setFont(new Font("SansSerif", Font.PLAIN, 12));
         lblTotal.setFont(new Font("SansSerif", Font.BOLD, 12));
 
+        // [MEJORA 3] Botón Exportar CSV
+        btnExportar = new JButton("📊 Exportar CSV");
+        btnExportar.putClientProperty(FlatClientProperties.STYLE, "arc: 8");
+        btnExportar.addActionListener(e -> exportarCSV());
+
+        JPanel rightStatusPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        rightStatusPanel.add(lblTotal);
+        rightStatusPanel.add(btnExportar);
+
         statusPanel.add(lblStatus, BorderLayout.WEST);
-        statusPanel.add(lblTotal, BorderLayout.EAST);
+        statusPanel.add(rightStatusPanel, BorderLayout.EAST);
         mainPanel.add(statusPanel, BorderLayout.SOUTH);
 
-        // Eventos
+        // Eventos de los botones principales
         btnGuardar.addActionListener(e -> guardarEmpleado());
         btnActualizar.addActionListener(e -> actualizarEmpleado());
         btnEliminar.addActionListener(e -> eliminarEmpleado());
@@ -183,7 +223,6 @@ public class EmpleadoFrame extends JFrame {
         panel.add(field, gbc);
     }
 
-    // Control de habilitación según el estado del formulario
     private void setModoEdicion(boolean enEdicion) {
         btnGuardar.setEnabled(!enEdicion);
         btnActualizar.setEnabled(enEdicion);
@@ -268,7 +307,38 @@ public class EmpleadoFrame extends JFrame {
         }
     }
 
-    // Validación visual utilizando los bordes rojos de FlatLaf
+    // Exportación de filas de la tabla a un archivo CSV accesible por Excel
+    private void exportarCSV() {
+        if (table.getRowCount() == 0) {
+            JOptionPane.showMessageDialog(this, "No hay datos para exportar.", "Atención", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Guardar reporte de empleados (CSV)");
+        fileChooser.setSelectedFile(new File("reporte_empleados.csv"));
+
+        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            try (PrintWriter writer = new PrintWriter(fileChooser.getSelectedFile())) {
+                writer.println("ID,Nombre,Departamento,Salario,Fecha,Estado");
+                for (int i = 0; i < table.getRowCount(); i++) {
+                    writer.println(String.format("%s,\"%s\",\"%s\",%s,%s,%s",
+                        table.getValueAt(i, 0),
+                        table.getValueAt(i, 1),
+                        table.getValueAt(i, 2),
+                        table.getValueAt(i, 3).toString().replace("Q", "").replace(",", "").trim(),
+                        table.getValueAt(i, 4),
+                        table.getValueAt(i, 5)
+                    ));
+                }
+                setStatus("Archivo CSV exportado exitosamente.");
+                JOptionPane.showMessageDialog(this, "Reporte CSV exportado con éxito.", "Éxito", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Error al exportar: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
     private Empleado obtenerEmpleadoDesdeFormulario(boolean incluirId) {
         limpiarErroresVisuales();
         boolean valido = true;
@@ -329,7 +399,6 @@ public class EmpleadoFrame extends JFrame {
         txtNombre.setText(tableModel.getValueAt(modelRow, 1).toString());
         txtDepartamento.setText(tableModel.getValueAt(modelRow, 2).toString());
 
-        // Quitar el formato 'Q ' y comas para colocar el valor numérico en el input
         String salarioStr = tableModel.getValueAt(modelRow, 3).toString()
                                 .replace("Q", "").replace(",", "").trim();
         txtSalario.setText(salarioStr);
