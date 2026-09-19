@@ -37,7 +37,7 @@ public class EmpleadoFrame extends JFrame {
     private DefaultTableModel tableModel;
     private TableRowSorter<DefaultTableModel> sorter;
 
-    private JTextField txtId, txtNombre, txtSalario, txtBuscar;
+    private JTextField txtId, txtNombre, txtTelefono, txtSalario, txtBuscar; // MEJORA #1: txtTelefono
     private JComboBox<String> cbDepartamento;
     private JFormattedTextField txtFecha;
     private JCheckBox chkActivo;
@@ -110,6 +110,7 @@ public class EmpleadoFrame extends JFrame {
         txtId = new JTextField();
         txtId.setEditable(false);
         txtNombre = createStyledField("Ej: Carlos Mendoza");
+        txtTelefono = createStyledField("Ej: 5555-1234"); // MEJORA #1
 
         String[] departamentos = {"Informática", "Recursos Humanos", "Ventas", "Contabilidad", "Administración", "Operaciones"};
         cbDepartamento = new JComboBox<>(departamentos);
@@ -144,14 +145,15 @@ public class EmpleadoFrame extends JFrame {
 
         addFormField(formPanel, gbc, 0, "ID:", txtId);
         addFormField(formPanel, gbc, 1, "Nombre Completo:", txtNombre);
-        addFormField(formPanel, gbc, 2, "Departamento:", cbDepartamento);
-        addFormField(formPanel, gbc, 3, "Salario (Q):", txtSalario);
-        addFormField(formPanel, gbc, 4, "Fecha Ingreso:", txtFecha);
-
-        gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 2;
-        formPanel.add(chkActivo, gbc);
+        addFormField(formPanel, gbc, 2, "Teléfono:", txtTelefono); // MEJORA #1
+        addFormField(formPanel, gbc, 3, "Departamento:", cbDepartamento);
+        addFormField(formPanel, gbc, 4, "Salario (Q):", txtSalario);
+        addFormField(formPanel, gbc, 5, "Fecha Ingreso:", txtFecha);
 
         gbc.gridx = 0; gbc.gridy = 6; gbc.gridwidth = 2;
+        formPanel.add(chkActivo, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 7; gbc.gridwidth = 2;
         gbc.insets = new Insets(12, 0, 12, 0);
         formPanel.add(new JSeparator(JSeparator.HORIZONTAL), gbc);
 
@@ -172,7 +174,7 @@ public class EmpleadoFrame extends JFrame {
         btnPanel.add(btnEliminar);
         btnPanel.add(btnLimpiar);
 
-        gbc.gridx = 0; gbc.gridy = 7; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 8; gbc.gridwidth = 2;
         gbc.insets = new Insets(0, 0, 0, 0);
         gbc.weighty = 1.0;
         gbc.anchor = GridBagConstraints.SOUTH;
@@ -180,8 +182,8 @@ public class EmpleadoFrame extends JFrame {
 
         mainPanel.add(formPanel, BorderLayout.WEST);
 
-        // 3. Tabla Principal
-        String[] columnas = {"ID", "Nombre", "Departamento", "Salario", "Fecha", "Estado"};
+        // 3. Tabla Principal (Incluye 'Teléfono' - MEJORA #1)
+        String[] columnas = {"ID", "Nombre", "Teléfono", "Departamento", "Salario", "Fecha", "Estado"};
         tableModel = new DefaultTableModel(columnas, 0) {
             @Override
             public boolean isCellEditable(int row, int column) { return false; }
@@ -213,18 +215,19 @@ public class EmpleadoFrame extends JFrame {
             table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
         }
 
-        // Renderer personalizado de Badges para la columna Estado
-        table.getColumnModel().getColumn(5).setCellRenderer(new StatusBadgeRenderer());
+        // Renderer personalizado de Badges para la columna Estado (ahora es la columna 6)
+        table.getColumnModel().getColumn(6).setCellRenderer(new StatusBadgeRenderer());
 
         ((DefaultTableCellRenderer) table.getTableHeader().getDefaultRenderer())
                 .setHorizontalAlignment(SwingConstants.CENTER);
 
         table.getColumnModel().getColumn(0).setPreferredWidth(50);
-        table.getColumnModel().getColumn(1).setPreferredWidth(200);
-        table.getColumnModel().getColumn(2).setPreferredWidth(140);
-        table.getColumnModel().getColumn(3).setPreferredWidth(110);
+        table.getColumnModel().getColumn(1).setPreferredWidth(180);
+        table.getColumnModel().getColumn(2).setPreferredWidth(110); // MEJORA #1
+        table.getColumnModel().getColumn(3).setPreferredWidth(130);
         table.getColumnModel().getColumn(4).setPreferredWidth(100);
         table.getColumnModel().getColumn(5).setPreferredWidth(100);
+        table.getColumnModel().getColumn(6).setPreferredWidth(100);
 
         sorter = new TableRowSorter<>(tableModel);
         table.setRowSorter(sorter);
@@ -282,7 +285,6 @@ public class EmpleadoFrame extends JFrame {
         InputMap im = root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
         ActionMap am = root.getActionMap();
 
-        // Ctrl + S: Guardar o Actualizar
         im.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()), "guardar");
         am.put("guardar", new AbstractAction() {
             @Override
@@ -292,14 +294,12 @@ public class EmpleadoFrame extends JFrame {
             }
         });
 
-        // ESC: Limpiar Formulario
         im.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "limpiar");
         am.put("limpiar", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) { limpiarFormulario(); }
         });
 
-        // Supr / Delete: Eliminar seleccionado
         im.put(KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0), "eliminar");
         am.put("eliminar", new AbstractAction() {
             @Override
@@ -348,6 +348,7 @@ public class EmpleadoFrame extends JFrame {
                 tableModel.addRow(new Object[]{
                     e.getId(),
                     e.getNombre(),
+                    e.getTelefono(), // MEJORA #1
                     e.getDepartamento(),
                     String.format("Q %,.2f", e.getSalario()),
                     e.getFechaContratacion(),
@@ -428,14 +429,16 @@ public class EmpleadoFrame extends JFrame {
                 int creados = 0;
                 while ((line = reader.readLine()) != null) {
                     String[] datos = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
-                    if (datos.length >= 6) {
+                    if (datos.length >= 7) { // Con teléfono
                         String nombre = datos[1].replace("\"", "").trim();
-                        String depto = datos[2].replace("\"", "").trim();
-                        double salario = Double.parseDouble(datos[3].trim());
-                        LocalDate fecha = LocalDate.parse(datos[4].trim());
-                        boolean activo = datos[5].trim().equalsIgnoreCase("Activo");
+                        String telefono = datos[2].replace("\"", "").trim();
+                        String depto = datos[3].replace("\"", "").trim();
+                        double salario = Double.parseDouble(datos[4].trim());
+                        LocalDate fecha = LocalDate.parse(datos[5].trim());
+                        boolean activo = datos[6].trim().equalsIgnoreCase("Activo");
 
                         Empleado e = new Empleado(nombre, depto, salario, fecha, activo);
+                        e.setTelefono(telefono); // MEJORA #1
                         dao.crear(e);
                         creados++;
                     }
@@ -461,15 +464,16 @@ public class EmpleadoFrame extends JFrame {
 
         if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
             try (PrintWriter writer = new PrintWriter(fileChooser.getSelectedFile())) {
-                writer.println("ID,Nombre,Departamento,Salario,Fecha,Estado");
+                writer.println("ID,Nombre,Telefono,Departamento,Salario,Fecha,Estado");
                 for (int i = 0; i < table.getRowCount(); i++) {
-                    writer.println(String.format("%s,\"%s\",\"%s\",%s,%s,%s",
+                    writer.println(String.format("%s,\"%s\",\"%s\",\"%s\",%s,%s,%s",
                         table.getValueAt(i, 0),
                         table.getValueAt(i, 1),
-                        table.getValueAt(i, 2),
-                        table.getValueAt(i, 3).toString().replace("Q", "").replace(",", "").trim(),
-                        table.getValueAt(i, 4),
-                        table.getValueAt(i, 5)
+                        table.getValueAt(i, 2), // MEJORA #1
+                        table.getValueAt(i, 3),
+                        table.getValueAt(i, 4).toString().replace("Q", "").replace(",", "").trim(),
+                        table.getValueAt(i, 5),
+                        table.getValueAt(i, 6)
                     ));
                 }
                 setStatus("Archivo CSV exportado exitosamente.");
@@ -489,6 +493,8 @@ public class EmpleadoFrame extends JFrame {
             txtNombre.putClientProperty(FlatClientProperties.OUTLINE, FlatClientProperties.OUTLINE_ERROR);
             valido = false;
         }
+
+        String telefono = txtTelefono.getText().trim(); // MEJORA #1
 
         String depto = (String) cbDepartamento.getSelectedItem();
 
@@ -510,10 +516,11 @@ public class EmpleadoFrame extends JFrame {
         }
 
         if (!valido) {
-            throw new IllegalArgumentException("Por favor, completa los campos resaltados en rojo correctamente.");
+            throw new IllegalArgumentException("Por favor, completa los campos resaltar en rojo correctamente.");
         }
 
         Empleado e = new Empleado(nombre, depto, salario, fecha, chkActivo.isSelected());
+        e.setTelefono(telefono); // MEJORA #1
         if (incluirId) {
             e.setId(Integer.parseInt(txtId.getText()));
         }
@@ -522,6 +529,7 @@ public class EmpleadoFrame extends JFrame {
 
     private void limpiarErroresVisuales() {
         txtNombre.putClientProperty(FlatClientProperties.OUTLINE, null);
+        txtTelefono.putClientProperty(FlatClientProperties.OUTLINE, null); // MEJORA #1
         txtSalario.putClientProperty(FlatClientProperties.OUTLINE, null);
         txtFecha.putClientProperty(FlatClientProperties.OUTLINE, null);
     }
@@ -534,14 +542,17 @@ public class EmpleadoFrame extends JFrame {
         txtId.setText(tableModel.getValueAt(modelRow, 0).toString());
         txtNombre.setText(tableModel.getValueAt(modelRow, 1).toString());
         
-        cbDepartamento.setSelectedItem(tableModel.getValueAt(modelRow, 2).toString());
+        Object telObj = tableModel.getValueAt(modelRow, 2);
+        txtTelefono.setText(telObj != null ? telObj.toString() : ""); // MEJORA #1
+        
+        cbDepartamento.setSelectedItem(tableModel.getValueAt(modelRow, 3).toString());
 
-        String salarioStr = tableModel.getValueAt(modelRow, 3).toString()
+        String salarioStr = tableModel.getValueAt(modelRow, 4).toString()
                                 .replace("Q", "").replace(",", "").trim();
         txtSalario.setText(salarioStr);
 
-        txtFecha.setText(tableModel.getValueAt(modelRow, 4).toString());
-        chkActivo.setSelected(tableModel.getValueAt(modelRow, 5).toString().equals("Activo"));
+        txtFecha.setText(tableModel.getValueAt(modelRow, 5).toString());
+        chkActivo.setSelected(tableModel.getValueAt(modelRow, 6).toString().equals("Activo"));
 
         limpiarErroresVisuales();
         setModoEdicion(true);
@@ -551,6 +562,7 @@ public class EmpleadoFrame extends JFrame {
     private void limpiarFormulario() {
         txtId.setText("");
         txtNombre.setText("");
+        txtTelefono.setText(""); // MEJORA #1
         cbDepartamento.setSelectedIndex(0);
         txtSalario.setText("");
         txtFecha.setValue(null);
@@ -577,8 +589,8 @@ public class EmpleadoFrame extends JFrame {
         double totalNomina = 0.0;
 
         for (int i = 0; i < total; i++) {
-            String salarioStr = table.getValueAt(i, 3).toString().replace("Q", "").replace(",", "").trim();
-            String estadoStr = table.getValueAt(i, 5).toString();
+            String salarioStr = table.getValueAt(i, 4).toString().replace("Q", "").replace(",", "").trim();
+            String estadoStr = table.getValueAt(i, 6).toString();
 
             try {
                 totalNomina += Double.parseDouble(salarioStr);
