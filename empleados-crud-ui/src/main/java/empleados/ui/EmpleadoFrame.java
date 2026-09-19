@@ -14,14 +14,19 @@ import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
+import javax.swing.text.MaskFormatter;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.PrintWriter;
 import java.sql.SQLException;
+import java.text.ParseException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.List;
@@ -32,15 +37,18 @@ public class EmpleadoFrame extends JFrame {
     private DefaultTableModel tableModel;
     private TableRowSorter<DefaultTableModel> sorter;
 
-    private JTextField txtId, txtNombre, txtDepartamento, txtSalario, txtFecha, txtBuscar;
+    private JTextField txtId, txtNombre, txtSalario, txtBuscar;
+    private JComboBox<String> cbDepartamento;
+    private JFormattedTextField txtFecha;
     private JCheckBox chkActivo;
     private JTable table;
-    private JButton btnGuardar, btnActualizar, btnEliminar, btnLimpiar, btnExportar;
+    private JButton btnGuardar, btnActualizar, btnEliminar, btnLimpiar, btnExportar, btnImportar;
     private JToggleButton btnTema;
     private JLabel lblStatus, lblTotal;
 
     public EmpleadoFrame() {
         initUI();
+        configurarAtajosTeclado();
         cargarDatos();
         limpiarFormulario();
     }
@@ -48,19 +56,18 @@ public class EmpleadoFrame extends JFrame {
     private void initUI() {
         setTitle("Sistema de Gestión de Empleados");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1120, 720);
+        setSize(1200, 750);
         setLocationRelativeTo(null);
 
-        JPanel mainPanel = new JPanel(new BorderLayout(15, 10));
-        mainPanel.setBorder(new EmptyBorder(15, 15, 10, 15));
+        JPanel mainPanel = new JPanel(new BorderLayout(15, 12));
+        mainPanel.setBorder(new EmptyBorder(15, 15, 12, 15));
         setContentPane(mainPanel);
 
-        // 1. Header Superior (Título + Selector de Tema + Buscador)
-        JPanel headerPanel = new JPanel(new BorderLayout(10, 10));
+        // 1. Cabecera
+        JPanel headerTop = new JPanel(new BorderLayout(10, 10));
         JLabel lblTitulo = new JLabel("Panel Principal de Empleados");
         lblTitulo.setFont(new Font("SansSerif", Font.BOLD, 22));
 
-        // [MEJORA VISUAL 1] Selector de Tema Claro / Oscuro en Tiempo Real
         btnTema = new JToggleButton("🌙 Modo Oscuro");
         btnTema.setSelected(true);
         btnTema.putClientProperty(FlatClientProperties.STYLE, "arc: 10");
@@ -69,7 +76,7 @@ public class EmpleadoFrame extends JFrame {
         txtBuscar = new JTextField();
         txtBuscar.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, "🔍 Buscar en tiempo real...");
         txtBuscar.putClientProperty(FlatClientProperties.STYLE, "arc: 12");
-        txtBuscar.setPreferredSize(new Dimension(260, 35));
+        txtBuscar.setPreferredSize(new Dimension(270, 35));
         txtBuscar.getDocument().addDocumentListener(new DocumentListener() {
             public void insertUpdate(DocumentEvent e) { filtrar(); }
             public void removeUpdate(DocumentEvent e) { filtrar(); }
@@ -80,25 +87,35 @@ public class EmpleadoFrame extends JFrame {
         rightHeader.add(btnTema);
         rightHeader.add(txtBuscar);
 
-        headerPanel.add(lblTitulo, BorderLayout.WEST);
-        headerPanel.add(rightHeader, BorderLayout.EAST);
-        mainPanel.add(headerPanel, BorderLayout.NORTH);
+        headerTop.add(lblTitulo, BorderLayout.WEST);
+        headerTop.add(rightHeader, BorderLayout.EAST);
 
-        // 2. Panel de Formulario
+        JPanel northContainer = new JPanel(new BorderLayout(0, 10));
+        northContainer.add(headerTop, BorderLayout.NORTH);
+        northContainer.add(new JSeparator(JSeparator.HORIZONTAL), BorderLayout.SOUTH);
+        mainPanel.add(northContainer, BorderLayout.NORTH);
+
+        // 2. Formulario Lateral
         JPanel formPanel = new JPanel(new GridBagLayout());
-        formPanel.setBorder(BorderFactory.createTitledBorder(" Información del Empleado "));
+        formPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder(" Datos del Registro "),
+            new EmptyBorder(10, 10, 10, 10)
+        ));
         formPanel.putClientProperty(FlatClientProperties.STYLE, "arc: 12");
+        
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(8, 8, 8, 8);
+        gbc.insets = new Insets(6, 6, 6, 6);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
         txtId = new JTextField();
         txtId.setEditable(false);
         txtNombre = createStyledField("Ej: Carlos Mendoza");
-        txtDepartamento = createStyledField("Ej: Informática");
-        txtSalario = createStyledField("Ej: 5500.00");
 
-        // Restricción de Teclado (Solo números y un punto decimal)
+        String[] departamentos = {"Informática", "Recursos Humanos", "Ventas", "Contabilidad", "Administración", "Operaciones"};
+        cbDepartamento = new JComboBox<>(departamentos);
+        cbDepartamento.putClientProperty(FlatClientProperties.STYLE, "arc: 8");
+
+        txtSalario = createStyledField("Ej: 5500.00");
         txtSalario.addKeyListener(new KeyAdapter() {
             @Override
             public void keyTyped(KeyEvent evt) {
@@ -112,20 +129,33 @@ public class EmpleadoFrame extends JFrame {
             }
         });
 
-        txtFecha = createStyledField("YYYY-MM-DD");
-        chkActivo = new JCheckBox("Estado Activo");
+        try {
+            MaskFormatter mascaraFecha = new MaskFormatter("####-##-##");
+            mascaraFecha.setPlaceholderCharacter('_');
+            txtFecha = new JFormattedTextField(mascaraFecha);
+            txtFecha.putClientProperty(FlatClientProperties.STYLE, "arc: 8");
+            txtFecha.setColumns(15);
+        } catch (ParseException e) {
+            txtFecha = new JFormattedTextField();
+        }
+
+        chkActivo = new JCheckBox("Empleado Activo");
         chkActivo.setSelected(true);
 
         addFormField(formPanel, gbc, 0, "ID:", txtId);
         addFormField(formPanel, gbc, 1, "Nombre Completo:", txtNombre);
-        addFormField(formPanel, gbc, 2, "Departamento:", txtDepartamento);
+        addFormField(formPanel, gbc, 2, "Departamento:", cbDepartamento);
         addFormField(formPanel, gbc, 3, "Salario (Q):", txtSalario);
         addFormField(formPanel, gbc, 4, "Fecha Ingreso:", txtFecha);
 
         gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 2;
         formPanel.add(chkActivo, gbc);
 
-        // [MEJORA VISUAL 2] Botones con Iconografía
+        gbc.gridx = 0; gbc.gridy = 6; gbc.gridwidth = 2;
+        gbc.insets = new Insets(12, 0, 12, 0);
+        formPanel.add(new JSeparator(JSeparator.HORIZONTAL), gbc);
+
+        // Botones del Formulario
         JPanel btnPanel = new JPanel(new GridLayout(2, 2, 8, 8));
         btnGuardar = new JButton("➕ Guardar");
         btnActualizar = new JButton("✏️ Actualizar");
@@ -142,31 +172,30 @@ public class EmpleadoFrame extends JFrame {
         btnPanel.add(btnEliminar);
         btnPanel.add(btnLimpiar);
 
-        gbc.gridx = 0; gbc.gridy = 6; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 7; gbc.gridwidth = 2;
+        gbc.insets = new Insets(0, 0, 0, 0);
         gbc.weighty = 1.0;
         gbc.anchor = GridBagConstraints.SOUTH;
         formPanel.add(btnPanel, gbc);
 
         mainPanel.add(formPanel, BorderLayout.WEST);
 
-        // 3. [MEJORA VISUAL 3] Tabla Estilo Zebra y Anchos de Columna Optimizados
+        // 3. Tabla Principal
         String[] columnas = {"ID", "Nombre", "Departamento", "Salario", "Fecha", "Estado"};
         tableModel = new DefaultTableModel(columnas, 0) {
             @Override
             public boolean isCellEditable(int row, int column) { return false; }
         };
         table = new JTable(tableModel);
-        table.setRowHeight(32);
+        table.setRowHeight(34);
         table.getTableHeader().setReorderingAllowed(false);
 
-        // Estilo Zebra (Filas alternadas) sin líneas verticales pesadas
         table.putClientProperty(FlatClientProperties.STYLE, ""
             + "showHorizontalLines: true;"
-            + "showVerticalLines: false;"
+            + "showVerticalLines: true;"
             + "alternateRowColor: $Table.alternateRowColor;"
             + "arc: 10");
 
-        // Carga por Doble Clic
         table.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -176,25 +205,26 @@ public class EmpleadoFrame extends JFrame {
             }
         });
 
-        // Alineación de Celdas
+        // Renderizadores
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
         centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
 
-        DefaultTableCellRenderer rightRenderer = new DefaultTableCellRenderer();
-        rightRenderer.setHorizontalAlignment(SwingConstants.RIGHT);
+        for (int i = 0; i < table.getColumnCount() - 1; i++) {
+            table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
+        }
 
-        table.getColumnModel().getColumn(0).setCellRenderer(centerRenderer); // ID
-        table.getColumnModel().getColumn(3).setCellRenderer(rightRenderer);  // Salario
-        table.getColumnModel().getColumn(4).setCellRenderer(centerRenderer); // Fecha
-        table.getColumnModel().getColumn(5).setCellRenderer(centerRenderer); // Estado
+        // Renderer personalizado de Badges para la columna Estado
+        table.getColumnModel().getColumn(5).setCellRenderer(new StatusBadgeRenderer());
 
-        // Ajuste de Anchos Proporcionales de Columnas
-        table.getColumnModel().getColumn(0).setPreferredWidth(50);  // ID
-        table.getColumnModel().getColumn(1).setPreferredWidth(210); // Nombre
-        table.getColumnModel().getColumn(2).setPreferredWidth(140); // Departamento
-        table.getColumnModel().getColumn(3).setPreferredWidth(110); // Salario
-        table.getColumnModel().getColumn(4).setPreferredWidth(100); // Fecha
-        table.getColumnModel().getColumn(5).setPreferredWidth(80);  // Estado
+        ((DefaultTableCellRenderer) table.getTableHeader().getDefaultRenderer())
+                .setHorizontalAlignment(SwingConstants.CENTER);
+
+        table.getColumnModel().getColumn(0).setPreferredWidth(50);
+        table.getColumnModel().getColumn(1).setPreferredWidth(200);
+        table.getColumnModel().getColumn(2).setPreferredWidth(140);
+        table.getColumnModel().getColumn(3).setPreferredWidth(110);
+        table.getColumnModel().getColumn(4).setPreferredWidth(100);
+        table.getColumnModel().getColumn(5).setPreferredWidth(100);
 
         sorter = new TableRowSorter<>(tableModel);
         table.setRowSorter(sorter);
@@ -203,13 +233,18 @@ public class EmpleadoFrame extends JFrame {
         scrollPane.putClientProperty(FlatClientProperties.STYLE, "arc: 10");
         mainPanel.add(scrollPane, BorderLayout.CENTER);
 
-        // 4. Barra de Estado Inferior con Botón Exportar CSV
-        JPanel statusPanel = new JPanel(new BorderLayout(10, 0));
-        statusPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
+        // 4. Barra de Estado e Indicadores de Nómina
+        JPanel statusContent = new JPanel(new BorderLayout(10, 0));
+        statusContent.setBorder(new EmptyBorder(6, 5, 2, 5));
+        
         lblStatus = new JLabel(" Sistema listo.");
-        lblTotal = new JLabel("Total de empleados: 0 ");
+        lblTotal = new JLabel("Cargando métricas...");
         lblStatus.setFont(new Font("SansSerif", Font.PLAIN, 12));
         lblTotal.setFont(new Font("SansSerif", Font.BOLD, 12));
+
+        btnImportar = new JButton("📥 Importar CSV");
+        btnImportar.putClientProperty(FlatClientProperties.STYLE, "arc: 8");
+        btnImportar.addActionListener(e -> importarCSV());
 
         btnExportar = new JButton("📊 Exportar CSV");
         btnExportar.putClientProperty(FlatClientProperties.STYLE, "arc: 8");
@@ -217,13 +252,19 @@ public class EmpleadoFrame extends JFrame {
 
         JPanel rightStatusPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         rightStatusPanel.add(lblTotal);
+        rightStatusPanel.add(btnImportar);
         rightStatusPanel.add(btnExportar);
 
-        statusPanel.add(lblStatus, BorderLayout.WEST);
-        statusPanel.add(rightStatusPanel, BorderLayout.EAST);
-        mainPanel.add(statusPanel, BorderLayout.SOUTH);
+        statusContent.add(lblStatus, BorderLayout.WEST);
+        statusContent.add(rightStatusPanel, BorderLayout.EAST);
 
-        // Eventos principales
+        JPanel southContainer = new JPanel(new BorderLayout());
+        southContainer.add(new JSeparator(JSeparator.HORIZONTAL), BorderLayout.NORTH);
+        southContainer.add(statusContent, BorderLayout.SOUTH);
+        
+        mainPanel.add(southContainer, BorderLayout.SOUTH);
+
+        // Eventos
         btnGuardar.addActionListener(e -> guardarEmpleado());
         btnActualizar.addActionListener(e -> actualizarEmpleado());
         btnEliminar.addActionListener(e -> eliminarEmpleado());
@@ -232,6 +273,38 @@ public class EmpleadoFrame extends JFrame {
         table.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting() && table.getSelectedRow() != -1) {
                 seleccionarFila();
+            }
+        });
+    }
+
+    private void configurarAtajosTeclado() {
+        JRootPane root = getRootPane();
+        InputMap im = root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        ActionMap am = root.getActionMap();
+
+        // Ctrl + S: Guardar o Actualizar
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()), "guardar");
+        am.put("guardar", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (btnActualizar.isEnabled()) actualizarEmpleado();
+                else guardarEmpleado();
+            }
+        });
+
+        // ESC: Limpiar Formulario
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "limpiar");
+        am.put("limpiar", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) { limpiarFormulario(); }
+        });
+
+        // Supr / Delete: Eliminar seleccionado
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0), "eliminar");
+        am.put("eliminar", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (table.getSelectedRow() != -1) eliminarEmpleado();
             }
         });
     }
@@ -254,7 +327,7 @@ public class EmpleadoFrame extends JFrame {
         return tf;
     }
 
-    private void addFormField(JPanel panel, GridBagConstraints gbc, int row, String label, JTextField field) {
+    private void addFormField(JPanel panel, GridBagConstraints gbc, int row, String label, JComponent field) {
         gbc.gridx = 0; gbc.gridy = row; gbc.gridwidth = 1;
         panel.add(new JLabel(label), gbc);
         gbc.gridx = 1; gbc.gridy = row;
@@ -281,7 +354,7 @@ public class EmpleadoFrame extends JFrame {
                     e.isActivo() ? "Activo" : "Inactivo"
                 });
             }
-            actualizarContador();
+            actualizarContadorYNomina();
             setStatus("Datos cargados correctamente.");
         } catch (SQLException ex) {
             JOptionPane.showMessageDialog(this, "Error SQL: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -345,6 +418,37 @@ public class EmpleadoFrame extends JFrame {
         }
     }
 
+    private void importarCSV() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Seleccionar archivo CSV de empleados");
+        if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            File file = fileChooser.getSelectedFile();
+            try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+                String line = reader.readLine(); // Saltar cabecera
+                int creados = 0;
+                while ((line = reader.readLine()) != null) {
+                    String[] datos = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
+                    if (datos.length >= 6) {
+                        String nombre = datos[1].replace("\"", "").trim();
+                        String depto = datos[2].replace("\"", "").trim();
+                        double salario = Double.parseDouble(datos[3].trim());
+                        LocalDate fecha = LocalDate.parse(datos[4].trim());
+                        boolean activo = datos[5].trim().equalsIgnoreCase("Activo");
+
+                        Empleado e = new Empleado(nombre, depto, salario, fecha, activo);
+                        dao.crear(e);
+                        creados++;
+                    }
+                }
+                cargarDatos();
+                setStatus("Importación masiva completada.");
+                JOptionPane.showMessageDialog(this, "Se importaron " + creados + " registros correctamente.", "Éxito", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Error al importar archivo CSV: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
     private void exportarCSV() {
         if (table.getRowCount() == 0) {
             JOptionPane.showMessageDialog(this, "No hay datos para exportar.", "Atención", JOptionPane.WARNING_MESSAGE);
@@ -386,11 +490,7 @@ public class EmpleadoFrame extends JFrame {
             valido = false;
         }
 
-        String depto = txtDepartamento.getText().trim();
-        if (depto.isEmpty()) {
-            txtDepartamento.putClientProperty(FlatClientProperties.OUTLINE, FlatClientProperties.OUTLINE_ERROR);
-            valido = false;
-        }
+        String depto = (String) cbDepartamento.getSelectedItem();
 
         double salario = 0;
         try {
@@ -422,7 +522,6 @@ public class EmpleadoFrame extends JFrame {
 
     private void limpiarErroresVisuales() {
         txtNombre.putClientProperty(FlatClientProperties.OUTLINE, null);
-        txtDepartamento.putClientProperty(FlatClientProperties.OUTLINE, null);
         txtSalario.putClientProperty(FlatClientProperties.OUTLINE, null);
         txtFecha.putClientProperty(FlatClientProperties.OUTLINE, null);
     }
@@ -434,7 +533,8 @@ public class EmpleadoFrame extends JFrame {
         int modelRow = table.convertRowIndexToModel(selectedRow);
         txtId.setText(tableModel.getValueAt(modelRow, 0).toString());
         txtNombre.setText(tableModel.getValueAt(modelRow, 1).toString());
-        txtDepartamento.setText(tableModel.getValueAt(modelRow, 2).toString());
+        
+        cbDepartamento.setSelectedItem(tableModel.getValueAt(modelRow, 2).toString());
 
         String salarioStr = tableModel.getValueAt(modelRow, 3).toString()
                                 .replace("Q", "").replace(",", "").trim();
@@ -451,9 +551,9 @@ public class EmpleadoFrame extends JFrame {
     private void limpiarFormulario() {
         txtId.setText("");
         txtNombre.setText("");
-        txtDepartamento.setText("");
+        cbDepartamento.setSelectedIndex(0);
         txtSalario.setText("");
-        txtFecha.setText("");
+        txtFecha.setValue(null);
         chkActivo.setSelected(true);
         limpiarErroresVisuales();
         table.clearSelection();
@@ -468,15 +568,55 @@ public class EmpleadoFrame extends JFrame {
         } else {
             sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query));
         }
-        actualizarContador();
+        actualizarContadorYNomina();
     }
 
-    private void actualizarContador() {
-        lblTotal.setText("Total de empleados: " + table.getRowCount() + "  ");
+    private void actualizarContadorYNomina() {
+        int total = table.getRowCount();
+        int activos = 0;
+        double totalNomina = 0.0;
+
+        for (int i = 0; i < total; i++) {
+            String salarioStr = table.getValueAt(i, 3).toString().replace("Q", "").replace(",", "").trim();
+            String estadoStr = table.getValueAt(i, 5).toString();
+
+            try {
+                totalNomina += Double.parseDouble(salarioStr);
+            } catch (NumberFormatException ignored) {}
+
+            if ("Activo".equals(estadoStr)) {
+                activos++;
+            }
+        }
+
+        lblTotal.setText(String.format("Empleados: %d (%d Activos)  |  Nómina Total: Q %,.2f  ", total, activos, totalNomina));
     }
 
     private void setStatus(String mensaje) {
         lblStatus.setText(" " + mensaje);
+    }
+
+    // Custom Renderer para los Badges de Estado
+    private static class StatusBadgeRenderer extends DefaultTableCellRenderer {
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+            JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            label.setHorizontalAlignment(SwingConstants.CENTER);
+            String estado = String.valueOf(value);
+
+            if ("Activo".equals(estado)) {
+                label.setText("● Activo");
+                label.setForeground(new Color(46, 125, 50));
+            } else {
+                label.setText("● Inactivo");
+                label.setForeground(new Color(198, 40, 40));
+            }
+
+            if (isSelected) {
+                label.setForeground(table.getSelectionForeground());
+            }
+            return label;
+        }
     }
 
     public static void main(String[] args) {
