@@ -1,6 +1,7 @@
 package empleados.modelo;
 
 import java.time.LocalDate;
+import java.time.Period;
 
 public class Empleado {
     private int id;
@@ -9,6 +10,7 @@ public class Empleado {
     private double salario;
     private LocalDate fechaContratacion;
     private boolean activo;
+    private String telefono; //Mejora #1
 
     public Empleado() {}
 
@@ -18,6 +20,7 @@ public class Empleado {
         this.salario = salario;
         this.fechaContratacion = fechaContratacion;
         this.activo = activo;
+        this.telefono = telefono;
     }
 
     public Empleado(int id, String nombre, String departamento, double salario, LocalDate fechaContratacion, boolean activo) {
@@ -27,6 +30,7 @@ public class Empleado {
         this.salario = salario;
         this.fechaContratacion = fechaContratacion;
         this.activo = activo;
+        this.telefono = telefono;
     }
 
     public int getId() { return id; }
@@ -46,4 +50,7 @@ public class Empleado {
 
     public boolean isActivo() { return activo; }
     public void setActivo(boolean activo) { this.activo = activo; }
+    
+    public String getTelefono() { return telefono; }
+    public void setTelefono(String telefono) {this.telefono = telefono;}
 }
