@@ -10,7 +10,7 @@ public class EmpleadoDAO {
     private Connection getConnection() throws SQLException {
         String url = "jdbc:mysql://localhost:3306/empresa_db?useSSL=false&serverTimezone=UTC";
         String user = "root";
-        String pass = "root"; // Cambia si tu clave de MySQL es diferente
+        String pass = "maplewood78"; // Cambia si tu clave de MySQL es diferente
         return DriverManager.getConnection(url, user, pass);
     }
 
